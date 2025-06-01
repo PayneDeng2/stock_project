@@ -24,21 +24,49 @@
     <el-tabs class="account-tabs" v-model="activeTab">
       <!-- 持仓管理 -->
       <el-tab-pane label="持仓管理" name="positions">
-        <el-table :data="positions" style="width: 100%">
+        <div class="positions-header">
+          <div class="positions-title">
+            <span>我的持仓</span>
+            <span class="record-count">（共 {{ positions.length }} 只股票）</span>
+          </div>
+          <el-button type="primary" size="small" @click="refreshPositions">
+            <el-icon><Refresh /></el-icon>
+            刷新持仓
+          </el-button>
+        </div>
+        <el-table :data="positions" style="width: 100%" v-if="positions.length > 0">
           <el-table-column prop="stockName" label="股票名称" align="center" />
           <el-table-column prop="stockCode" label="股票代码" align="center" />
           <el-table-column prop="quantity" label="持仓数量" align="center" />
-          <el-table-column prop="avgPrice" label="平均成本" align="center" />
-          <el-table-column prop="currentPrice" label="当前价格" align="center" />
+          <el-table-column prop="avgPrice" label="平均成本" align="center">
+            <template #default="scope">
+              ¥{{ scope.row.avgPrice.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="currentPrice" label="当前价格" align="center">
+            <template #default="scope">
+              ¥{{ scope.row.currentPrice.toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="市值" align="center">
+            <template #default="scope">
+              ¥{{ formatNumber(scope.row.quantity * scope.row.currentPrice) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="profitLoss" label="盈亏" align="center">
             <template #default="scope">
               <span :class="scope.row.profitLoss >= 0 ? 'profit' : 'loss'">
-                {{ scope.row.profitLoss >= 0 ? '+' : '' }}{{ scope.row.profitLoss }}%
+                {{ scope.row.profitLoss >= 0 ? '+' : '' }}{{ scope.row.profitLoss.toFixed(2) }}%
               </span>
             </template>
           </el-table-column>
         </el-table>
-      </el-tab-pane>      <!-- 交易记录 -->
+        <div v-else class="empty-state">
+          <el-empty description="暂无持仓数据" />
+        </div>
+      </el-tab-pane>      
+      
+      <!-- 交易记录 -->
       <el-tab-pane label="交易记录" name="transactions">
         <div class="transactions-header">
           <div class="transactions-title">
@@ -50,7 +78,7 @@
             刷新记录
           </el-button>
         </div>
-        <el-table :data="transactions" style="width: 100%">
+        <el-table :data="transactions" style="width: 100%" v-if="transactions.length > 0">
           <el-table-column prop="date" label="交易日期" align="center" width="150" />
           <el-table-column prop="stockName" label="股票名称" align="center" />
           <el-table-column prop="stockCode" label="股票代码" align="center" width="120" />
@@ -65,6 +93,9 @@
           <el-table-column prop="quantity" label="交易数量" align="center" />
           <el-table-column prop="amount" label="交易金额" align="center" />
         </el-table>
+        <div v-else class="empty-state">
+          <el-empty description="暂无交易记录" />
+        </div>
       </el-tab-pane>
 
       <!-- 资金管理 -->
@@ -115,10 +146,9 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { getTradeRecords, initializeDefaultRecords } from '@/utils/tradeManager'
 
 export default {
   name: 'AccountView',
@@ -127,6 +157,7 @@ export default {
   },
   setup() {
     const activeTab = ref('positions')
+    let refreshInterval = null
 
     // 格式化数字
     const formatNumber = (num) => {
@@ -139,50 +170,151 @@ export default {
     // 账户信息
     const accountInfo = reactive({
       availableFunds: 50000.00,
-      stockValue: 26251.00
+      stockValue: 0
     })
 
     // 持仓管理
-    const positions = ref([
-      {
-        stockName: '阿里巴巴',
-        stockCode: '9988.HK',
-        quantity: 100,
-        avgPrice: 88.50,
-        currentPrice: 89.75,
-        profitLoss: 1.41
-      },
-      {
-        stockName: '腾讯控股',
-        stockCode: '0700.HK',
-        quantity: 30,
-        avgPrice: 365.00,
-        currentPrice: 368.20,
-        profitLoss: 0.88
-      },
-      {
-        stockName: '小米集团',
-        stockCode: '1810.HK',
-        quantity: 500,
-        avgPrice: 12.80,
-        currentPrice: 12.46,
-        profitLoss: -2.66
-      }
-    ])    // 交易记录
+    const positions = ref([])
+
+    // 交易记录
     const transactions = ref([])
-      // 组件挂载时加载交易记录
-    onMounted(() => {
-      // 初始化默认记录（如果没有记录的话）
-      initializeDefaultRecords()
-      // 从本地存储加载交易记录
+
+    // 获取股票名称（虽然当前Account.vue中没有直接使用，但为了保持数据一致性而保留）
+    // const getStockName = (stockCode) => {
+    //   const stockMap = {
+    //     '9988.HK': '阿里巴巴',
+    //     '0700.HK': '腾讯控股',
+    //     '600519.SH': '贵州茅台',
+    //     '601318.SH': '中国平安',
+    //     '1810.HK': '小米集团'
+    //   }
+    //   return stockMap[stockCode] || '未知股票'
+    // }
+
+    // 从localStorage获取交易记录
+    const getTradeRecords = () => {
+      const records = localStorage.getItem('tradeRecords')
+      return records ? JSON.parse(records) : []
+    }
+
+    // 从localStorage获取持仓数据
+    const getPositions = () => {
+      const positions = localStorage.getItem('positions')
+      return positions ? JSON.parse(positions) : [
+        {
+          stockName: '阿里巴巴',
+          stockCode: '9988.HK',
+          quantity: 100,
+          avgPrice: 88.50,
+          currentPrice: 89.75,
+          profitLoss: 1.41
+        },
+        {
+          stockName: '腾讯控股',
+          stockCode: '0700.HK',
+          quantity: 30,
+          avgPrice: 365.00,
+          currentPrice: 368.20,
+          profitLoss: 0.88
+        },
+        {
+          stockName: '小米集团',
+          stockCode: '1810.HK',
+          quantity: 500,
+          avgPrice: 12.80,
+          currentPrice: 12.46,
+          profitLoss: -2.66
+        }
+      ]
+    }
+
+    // 计算持仓市值
+    const calculateStockValue = () => {
+      const totalValue = positions.value.reduce((total, position) => {
+        return total + (position.quantity * position.currentPrice)
+      }, 0)
+      accountInfo.stockValue = totalValue
+    }
+
+    // 加载持仓数据
+    const loadPositions = () => {
+      positions.value = getPositions()
+      calculateStockValue()
+    }
+
+    // 加载交易记录
+    const loadTransactions = () => {
       transactions.value = getTradeRecords()
-    })
+    }
+
+    // 刷新持仓
+    const refreshPositions = () => {
+      loadPositions()
+      ElMessage.success('持仓数据已刷新')
+    }
 
     // 刷新交易记录
     const refreshTransactions = () => {
-      transactions.value = getTradeRecords()
+      loadTransactions()
       ElMessage.success('交易记录已刷新')
     }
+
+    // 组件挂载时加载数据
+    onMounted(() => {
+      // 初始化默认记录（如果没有记录的话）
+      if (getTradeRecords().length === 0) {
+        const defaultRecords = [
+          {
+            id: 1,
+            date: '2025/6/1',
+            stockName: '阿里巴巴',
+            stockCode: '9988.HK',
+            type: '买入',
+            price: '¥88.50',
+            quantity: 100,
+            amount: '¥8,850.00',
+            timestamp: Date.now() - 86400000
+          },
+          {
+            id: 2,
+            date: '2025/5/31',
+            stockName: '腾讯控股',
+            stockCode: '0700.HK',
+            type: '买入',
+            price: '¥365.00',
+            quantity: 30,
+            amount: '¥10,950.00',
+            timestamp: Date.now() - 172800000
+          }
+        ]
+        localStorage.setItem('tradeRecords', JSON.stringify(defaultRecords))
+      }
+
+      // 初始化持仓数据（如果没有的话）
+      if (!localStorage.getItem('positions')) {
+        localStorage.setItem('positions', JSON.stringify(getPositions()))
+      }
+
+      // 加载数据
+      loadTransactions()
+      loadPositions()
+      
+      // 设置定时刷新，每5秒刷新一次数据，避免过于频繁的更新
+      refreshInterval = setInterval(() => {
+        // 使用 setTimeout 来避免渲染冲突
+        setTimeout(() => {
+          loadPositions()
+          loadTransactions()
+        }, 0)
+      }, 5000)
+    })
+
+    // 组件卸载时清理定时器
+    onUnmounted(() => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+      }
+    })
 
     // 充值表单
     const depositForm = reactive({
@@ -239,6 +371,7 @@ export default {
       accountInfo,
       positions,
       transactions,
+      refreshPositions,
       refreshTransactions,
       depositForm,
       withdrawForm,
@@ -248,6 +381,7 @@ export default {
   }
 }
 </script>
+
 <style scoped>
 .account-page {
   padding: 20px;
@@ -284,7 +418,8 @@ export default {
   margin-top: 20px;
 }
 
-.transactions-header {
+.transactions-header,
+.positions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -292,7 +427,8 @@ export default {
   padding: 0 4px;
 }
 
-.transactions-title {
+.transactions-title,
+.positions-title {
   font-size: 16px;
   font-weight: 600;
 }
@@ -347,6 +483,10 @@ export default {
   margin-top: 20px;
 }
 
+.empty-state {
+  padding: 40px 0;
+}
+
 /* 移动端响应式样式 */
 @media screen and (max-width: 768px) {
   .account-page {
@@ -386,13 +526,15 @@ export default {
     padding: 15px;
   }
 
-  .transactions-header {
+  .transactions-header,
+  .positions-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
 
-  .transactions-title {
+  .transactions-title,
+  .positions-title {
     font-size: 15px;
   }
 
@@ -437,7 +579,8 @@ export default {
     padding: 10px;
   }
 
-  .transactions-title {
+  .transactions-title,
+  .positions-title {
     font-size: 14px;
   }
 

@@ -2,7 +2,10 @@ package com.haydenshui.stock.lib.entity.stock;
 
 import lombok.*;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Represents a stock listed on a securities exchange.
@@ -96,5 +99,87 @@ public class Stock {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private StockStatus status;
+    
+    /**
+     * The current price of the stock.
+     * This is the most recent price at which the stock was traded.
+     */
+    @Column(name = "current_price", precision = 18, scale = 2)
+    private BigDecimal currentPrice;
+    
+    /**
+     * The opening price of the stock for the current trading day.
+     */
+    @Column(name = "open_price", precision = 18, scale = 2)
+    private BigDecimal openPrice;
+    
+    /**
+     * The closing price of the stock from the previous trading day.
+     */
+    @Column(name = "close_price", precision = 18, scale = 2)
+    private BigDecimal closePrice;
+    
+    /**
+     * The highest price of the stock during the current trading day.
+     */
+    @Column(name = "high_price", precision = 18, scale = 2)
+    private BigDecimal highPrice;
+    
+    /**
+     * The lowest price of the stock during the current trading day.
+     */
+    @Column(name = "low_price", precision = 18, scale = 2)
+    private BigDecimal lowPrice;
+    
+    /**
+     * The closing price of the stock from the previous trading day.
+     * This is used to calculate price change percentage.
+     */
+    @Column(name = "previous_close_price", precision = 18, scale = 2)
+    private BigDecimal previousClosePrice;
+    
+    /**
+     * The total number of shares traded during the current trading day.
+     */
+    @Column(name = "volume")
+    private Long volume;
+    
+    /**
+     * The total value of shares traded during the current trading day.
+     */
+    @Column(name = "turnover", precision = 20, scale = 2)
+    private BigDecimal turnover;
+    
+    /**
+     * Indicates if this stock is actually an index (like SSE Composite Index)
+     */
+    @Column(name = "is_index")
+    private Boolean isIndex = false;
+    
+    /**
+     * The last time the stock price was updated.
+     */
+    @Column(name = "last_updated")
+    private LocalDateTime lastUpdated;
+    
+    /**
+     * Calculates the price change percentage from previous close.
+     * 
+     * @return The percentage change in price compared to the previous close, or null if previousClosePrice is null or zero.
+     */
+    @Transient
+    public BigDecimal getPriceChangePercentage() {
+        if (previousClosePrice == null || previousClosePrice.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        
+        if (currentPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        
+        return currentPrice.subtract(previousClosePrice)
+                .divide(previousClosePrice, 4, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal(100));
+    }
 
 }

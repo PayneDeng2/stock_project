@@ -2,6 +2,7 @@ package com.haydenshui.stock.lib.entity.position;
 
 import com.haydenshui.stock.lib.entity.account.SecuritiesAccount;
 import com.haydenshui.stock.lib.entity.stock.Stock;
+import com.haydenshui.stock.lib.entity.trade.OrderType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -9,7 +10,10 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Represents a position in a securities account, tracking stock holdings.
@@ -37,12 +41,16 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
+@ToString(exclude = {"stopLossTakeProfitRules"})
 @Entity
 @Table(name = "position", uniqueConstraints = {
         @UniqueConstraint(name = "uq_position_account_stock", columnNames = {"securities_account_id", "stock_code"})
 }, indexes = {
         @Index(name = "idx_position_securities_account_id", columnList = "securities_account_id"),
+<<<<<<< HEAD
+=======
+        @Index(name = "idx_position_stock_id", columnList = "stock_id"),
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
         @Index(name = "idx_position_stock_code", columnList = "stock_code")
 })
 @EntityListeners(AuditingEntityListener.class)
@@ -66,7 +74,17 @@ public class Position {
     private Long securitiesAccountId;
 
     /**
-     * The stock associated with this position.
+     * The stock ID associated with this position.
+     * <p>
+     * This field represents a relationship to a {@link Stock} entity, 
+     * indicating the stock that is held within this position.
+     * </p>
+     */
+    @Column(name = "stock_id", nullable = false)
+    private Long stockId;
+
+    /**
+     * The stock code associated with this position.
      * <p>
      * This field represents a relationship to a {@link Stock} entity, 
      * indicating the stock that is held within this position.
@@ -115,6 +133,12 @@ public class Position {
      */
     @Column(name = "frozen_quantity", nullable = false)
     private Integer frozenQuantity = 0;
+    
+    /**
+     * The total cost of this position (average price * quantity).
+     */
+    @Column(name = "total_cost", precision = 20, scale = 2)
+    private BigDecimal totalCost;
 
     /**
      * The timestamp when the position was created.
@@ -135,5 +159,135 @@ public class Position {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
+    
+    /**
+     * The list of stop loss and take profit rules associated with this position.
+     */
+    @OneToMany(mappedBy = "position", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<StopLossTakeProfitRule> stopLossTakeProfitRules = new ArrayList<>();
+    
+    /**
+     * Calculates the available quantity that can be traded or sold.
+     * <p>
+     * The available quantity is the total quantity of shares held minus the quantity
+     * that is currently frozen (e.g., due to pending sell orders). This represents the
+     * number of shares that can be immediately sold or used for other transactions.
+     * </p>
+     * 
+     * @return The number of shares available for trading
+     */
+    @Transient
+    public Integer getAvailableQuantity() {
+        return quantity - frozenQuantity;
+    }
+    
+    /**
+     * Updates the total cost when either quantity or average price changes.
+     * <p>
+     * This method is automatically called before persisting or updating the position entity.
+     * It calculates the total cost by multiplying the quantity by the average price.
+     * If either quantity or average price is null, no calculation is performed.
+     * </p>
+     */
+    @PrePersist
+    @PreUpdate
+    public void updateTotalCost() {
+        if (quantity != null && averagePrice != null) {
+            this.totalCost = averagePrice.multiply(new BigDecimal(quantity));
+        }
+    }
+    
+    /**
+     * Calculates the current market value of the position based on the provided current price.
+     * <p>
+     * This method multiplies the total quantity of shares by the current market price
+     * to determine the total value of the position. If either parameter is null,
+     * it returns zero to avoid null pointer exceptions.
+     * </p>
+     * 
+     * @param currentPrice The current market price of the stock
+     * @return The current market value of the position
+     */
+    public BigDecimal getCurrentValue(BigDecimal currentPrice) {
+        if (currentPrice == null || quantity == null) {
+            return BigDecimal.ZERO;
+        }
+        return currentPrice.multiply(new BigDecimal(quantity));
+    }
+    
+    /**
+     * Calculates the unrealized profit or loss of the position based on the provided current price.
+     * <p>
+     * This method determines the difference between the current market value and the
+     * cost basis of the position. It calculates this by finding the difference between
+     * the current price and the average purchase price, then multiplying by the quantity.
+     * If any required parameter is null, it returns zero to avoid null pointer exceptions.
+     * </p>
+     * 
+     * @param currentPrice The current market price of the stock
+     * @return The unrealized profit or loss
+     */
+    public BigDecimal getUnrealizedPnl(BigDecimal currentPrice) {
+        if (currentPrice == null || quantity == null || averagePrice == null) {
+            return BigDecimal.ZERO;
+        }
+        return currentPrice.subtract(averagePrice).multiply(new BigDecimal(quantity));
+    }
+    
+    /**
+     * Calculates the unrealized profit or loss percentage.
+     * <p>
+     * This method determines the percentage gain or loss on the position by comparing
+     * the current price with the average purchase price. It uses the formula:
+     * ((currentPrice - averagePrice) / averagePrice) * 100.
+     * If any required parameter is null or the average price is zero, it returns zero
+     * to avoid division by zero errors.
+     * </p>
+     * 
+     * @param currentPrice The current market price of the stock
+     * @return The percentage of profit or loss
+     */
+    public BigDecimal getUnrealizedPnlPercentage(BigDecimal currentPrice) {
+        if (averagePrice == null || averagePrice.compareTo(BigDecimal.ZERO) == 0 || currentPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        
+        return currentPrice.subtract(averagePrice)
+            .divide(averagePrice, 4, RoundingMode.HALF_UP)
+            .multiply(new BigDecimal(100));
+    }
+    
+    /**
+     * Updates the position quantity and average price after a buy or sell transaction.
+     * <p>
+     * This method adjusts the position details based on the type of transaction:
+     * <ul>
+     *   <li>For BUY transactions, it recalculates the average purchase price using a weighted average
+     *       and increases the total quantity.</li>
+     *   <li>For SELL transactions, it reduces the quantity but maintains the same average price.</li>
+     * </ul>
+     * After updating the position, it also recalculates the total cost.
+     * </p>
+     * 
+     * @param type The type of transaction (buy/sell)
+     * @param quantity The quantity involved in the transaction
+     * @param price The price at which the transaction occurred
+     */
+    public void updatePositionAfterTransaction(OrderType type, int quantity, BigDecimal price) {
+        if (OrderType.BUY == type) {
+            // Calculate new average price for buy
+            BigDecimal oldTotalCost = this.averagePrice.multiply(new BigDecimal(this.quantity));
+            BigDecimal newPurchaseCost = price.multiply(new BigDecimal(quantity));
+            int newQuantity = this.quantity + quantity;
+            
+            this.averagePrice = oldTotalCost.add(newPurchaseCost).divide(new BigDecimal(newQuantity), 2, RoundingMode.HALF_UP);
+            this.quantity = newQuantity;
+        } else if (OrderType.SELL == type) {
+            // For selling, we just reduce the quantity but keep the average price
+            this.quantity -= quantity;
+        }
+        
+        // Update total cost
+        updateTotalCost();
+    }
 }

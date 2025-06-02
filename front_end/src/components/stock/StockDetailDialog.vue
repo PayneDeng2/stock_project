@@ -48,10 +48,7 @@
           </div>
         </div>
         <div class="price-chart">
-          <!-- 这里可以集成图表库，如ECharts -->
-          <div class="chart-placeholder">
-            <el-empty description="股价走势图 (可集成ECharts实现)"></el-empty>
-          </div>
+          <div ref="chartDomRef" style="width: 100%; height: 100%;"></div>
         </div>
       </div>      <div class="action-section">
         <el-button type="primary" class="action-button trade-button" @click="goToTrading">
@@ -80,12 +77,28 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { Sell, Bell, Star } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import StockAlertDialog from './StockAlertDialog.vue';
 import { addToWatchlist, removeFromWatchlist, isInWatchlist as checkInWatchlist } from '@/utils/stockManager';
+import * as echarts from 'echarts/core'; // 引入 ECharts核心
+import { LineChart } from 'echarts/charts'; // 引入折线图
+import { TitleComponent, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent } from 'echarts/components'; // 引入必要的组件
+import { CanvasRenderer } from 'echarts/renderers'; // 引入渲染器
+import { getStockHistoricalData } from '@/utils/stockDataService';
+
+// 注册 ECharts 组件
+echarts.use([
+  TitleComponent,
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+  DataZoomComponent,
+  LineChart,
+  CanvasRenderer
+]);
 
 export default {
   name: 'StockDetailDialog',
@@ -105,13 +118,17 @@ export default {
       required: true,
       default: () => ({})
     }
-  },  setup(props, { emit }) {
+  },
+  setup(props, { emit }) {
     const router = useRouter();
-    const timeRange = ref('day');
+    const timeRange = ref('day'); // 时间范围选择，例如 'day', 'week', 'month', 'year'
     const alertDialogVisible = ref(false);
     const isInWatchlist = ref(false);
 
-    // 响应式弹窗宽度
+    const chartDomRef = ref(null); // 图表DOM元素的引用
+    let chartInstance = null; // ECharts 实例
+    const chartData = ref([]); // 存储图表数据
+
     const dialogWidth = computed(() => {
       if (typeof window !== 'undefined') {
         const width = window.innerWidth;
@@ -130,12 +147,158 @@ export default {
       return `${year}-${month}-${day}`;
     };
 
-    // 监听股票变化，更新自选状态
+    // 获取并更新图表数据
+    const fetchChartData = async () => {
+      if (!props.stock || !props.stock.code || !chartInstance) {
+        // 如果股票信息不完整或图表未初始化，则不执行
+        if (chartInstance) chartInstance.clear(); // 清除旧数据
+        return;
+      }
+      try {
+        chartInstance.showLoading(); // 显示加载动画
+        // 调用您的服务中的新函数
+        const historicalData = await getStockHistoricalData(props.stock.code, timeRange.value);
+        chartData.value = historicalData;
+        updateChart();
+      } catch (error) {
+        console.error('获取股价走势数据失败:', error);
+        ElMessage.error('获取股价走势失败');
+        chartData.value = []; // 出错时清空数据
+        updateChart(); // 更新图表以显示空状态或错误信息
+      } finally {
+        if (chartInstance && !chartInstance.isDisposed()) {
+           chartInstance.hideLoading(); // 隐藏加载动画
+        }
+      }
+    };
+
+    // 初始化或更新图表
+    const updateChart = () => {
+      if (!chartInstance || chartInstance.isDisposed()) return;
+      const option = {
+        tooltip: {
+          trigger: 'axis', // 坐标轴触发
+          axisPointer: {
+            type: 'cross' // 十字准星指示器
+          }
+        },
+        xAxis: {
+          type: 'category', // 类目轴，适用于离散的标签，如日期或时间点
+          data: chartData.value.map(item => item.time), // 例如: ['09:30', '10:00', ...] 或日期
+          boundaryGap: false, // x轴数据点是否在刻度中间
+        },
+        yAxis: {
+          type: 'value', // 数值轴
+          scale: true, // Y轴会自动缩放以适应数据
+          axisLabel: {
+            formatter: '{value}' // 可以添加单位，如 '{value} 元'
+          }
+        },
+        dataZoom: [ // 可选：添加数据区域缩放功能，方便大数据量查看
+            {
+                type: 'inside', // 内置型数据区域缩放组件
+                start: 0,
+                end: 100
+            },
+            {
+                type: 'slider', // 滑动条型数据区域缩放组件
+                start: 0,
+                end: 100,
+                bottom: '2%' // 调整位置，避免与X轴标签重叠
+            }
+        ],
+        series: [
+          {
+            name: props.stock.name || '价格',
+            type: 'line', // 折线图
+            data: chartData.value.map(item => item.price), // 例如: [10.2, 10.5, ...]
+            smooth: true, // 可选：平滑曲线显示
+            showSymbol: chartData.value.length < 50, // 数据点较少时显示标记点
+            lineStyle: {
+                width: 2 // 线条宽度
+            },
+            // 根据涨跌给线条不同颜色
+            itemStyle: {
+              color: props.stock.change > 0 ? '#f56c6c' : (props.stock.change < 0 ? '#67c23a' : '#5470c6')
+            }
+          }
+        ],
+        grid: { // 调整网格位置，防止标签被裁剪
+            left: '3%',  // 适当调整以显示Y轴标签
+            right: '4%',
+            bottom: '10%', // 为 dataZoom 留出空间
+            containLabel: true // grid 区域是否包含坐标轴的刻度标签
+        }
+      };
+      chartInstance.setOption(option, true); // true 表示不与之前的 option 合并
+    };
+
+    // 监听弹窗可见性
+    watch(() => props.visible, (newVal) => {
+      if (newVal) {
+        nextTick(() => { // 确保DOM已渲染
+          if (chartDomRef.value && (!chartInstance || chartInstance.isDisposed())) {
+            chartInstance = echarts.init(chartDomRef.value);
+            // 添加窗口大小变化监听，用于图表自适应
+            window.addEventListener('resize', resizeChartHandler);
+          }
+          if (chartInstance && !chartInstance.isDisposed()){
+             chartInstance.resize(); // 每次显示时尝试调整大小
+             fetchChartData(); // 弹窗可见时获取数据
+          }
+        });
+      } else {
+        // 弹窗关闭时可以考虑移除resize监听器，虽然onBeforeUnmount中也会处理
+        if (chartInstance && !chartInstance.isDisposed()) {
+          chartInstance.dispose(); // 销毁图表实例，防止内存泄漏
+          chartInstance = null;
+          window.removeEventListener('resize', resizeChartHandler);
+        }
+      }
+    });
+
+    const resizeChartHandler = () => {
+        if (chartInstance && !chartInstance.isDisposed()) {
+            chartInstance.resize();
+        }
+    };
+
+    // 监听股票变化
     watch(() => props.stock, (newStock) => {
       if (newStock && newStock.code) {
         isInWatchlist.value = checkInWatchlist(newStock.code);
+        if (props.visible && chartInstance && !chartInstance.isDisposed()) {
+          fetchChartData(); // 股票变化且弹窗可见时，重新获取图表数据
+        }
       }
-    }, { immediate: true });
+    }, { immediate: true, deep: true }); // immediate: 初始执行, deep: 深度监听
+
+    // 监听时间范围变化
+    watch(timeRange, () => {
+      if (props.visible && chartInstance && !chartInstance.isDisposed()) {
+        fetchChartData(); // 时间范围变化时，重新获取图表数据
+      }
+    });
+
+    onMounted(() => {
+        // 组件挂载时，如果弹窗初始就可见，则初始化图表
+        if (props.visible && chartDomRef.value && (!chartInstance || chartInstance.isDisposed())) {
+            nextTick(() => { // 确保DOM元素已准备好
+              console.log(chartDomRef.value);
+              chartInstance = echarts.init(chartDomRef.value);
+              window.addEventListener('resize', resizeChartHandler);
+              fetchChartData();
+            });
+        }
+    });
+
+    onBeforeUnmount(() => {
+      window.removeEventListener('resize', resizeChartHandler); // 移除resize监听
+      if (chartInstance && !chartInstance.isDisposed()) {
+        chartInstance.dispose(); // 销毁图表实例，防止内存泄漏
+        chartInstance = null;
+      }
+    });
 
     // 前往交易页面
     const goToTrading = () => {
@@ -213,7 +376,8 @@ export default {
       goToTrading,
       showAlertDialog,
       toggleWatchlist,
-      handleAlertAdded
+      handleAlertAdded,
+      chartDomRef,
     };
   },
   emits: ['update:visible', 'close', 'watchlist-changed', 'alert-added'],

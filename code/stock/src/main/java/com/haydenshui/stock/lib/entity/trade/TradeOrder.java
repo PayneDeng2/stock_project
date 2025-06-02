@@ -34,30 +34,37 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class TradeOrder {
 
     /**
-     * The unique identifier for the trade order.
-     * This is the primary key of the table.
+     * The unique identifier for this trade order.
+     * This is automatically generated as the primary key.
      */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
+    
     /**
-     * The ID of the associated securities account for this trade order.
-     * This is a foreign key referring to the `securities_account` table.
+     * The securities account associated with this trade order.
+     * This represents the account that placed this trade order.
      */
     @Column(name = "securities_account_id", nullable = false)
     private Long securitiesAccountId;
-
+    
     /**
-     * The stock code for the security being traded.
-     * This code represents the unique identifier for the stock in the system.
+     * The capital account associated with this trade order.
+     * This represents the account that will be used for the financial transaction.
      */
-    @Column(name = "stock_code", nullable = false, length = 10)
-    private String stockCode;
-
+    @Column(name = "capital_account_id", nullable = false)
+    private Long capitalAccountId;
+    
     /**
-     * The type of the order (e.g., buy or sell).
-     * This is an enumerated value that defines whether the order is a buy or sell order.
+     * The stock code of the stock being traded.
+     * This uniquely identifies the stock involved in this trade.
+     */
+    @Column(name = "stock_code", nullable = false)
+    private String stockCode;
+    
+    /**
+     * The type of the order (buy or sell).
+     * This indicates whether the order is to buy or sell the stock.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "order_type", nullable = false)
@@ -100,10 +107,10 @@ public class TradeOrder {
     @Enumerated(EnumType.STRING)
     @Column(name = "order_status", nullable = false)
     private OrderStatus orderStatus;
-
+    
     /**
-     * The timestamp when the order was created.
-     * This records the exact time when the order was placed in the system.
+     * The timestamp when the order was placed.
+     * This records the exact time when the order was created.
      */
     @CreatedDate
     @Column(name = "order_time", nullable = false)

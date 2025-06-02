@@ -83,4 +83,10 @@ public class TradeExecution {
     @Column(name = "execution_time", nullable = false)
     private LocalDateTime executionTime;
 
+    /**
+     * The stock code involved in this trade execution.
+     */
+    @Column(name = "stock_code", nullable = false)
+    private String stockCode;
+
 }

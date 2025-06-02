@@ -7,8 +7,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.haydenshui.stock.capital.CapitalAccountRepository;
+<<<<<<< HEAD
 import com.haydenshui.stock.lib.dto.CheckDTO;
 import com.haydenshui.stock.lib.dto.capital.CapitalAccountDTO;
+=======
+import com.haydenshui.stock.lib.dto.capital.CapitalAccountDTO;
+import com.haydenshui.stock.lib.dto.capital.CapitalCheckDTO;
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
 import com.haydenshui.stock.lib.dto.capital.CapitalMapper;
 import com.haydenshui.stock.lib.entity.account.CapitalAccount;
 import com.haydenshui.stock.lib.exception.ResourceAlreadyExistsException;
@@ -31,7 +36,11 @@ public abstract class AbstractCapitalAccountStrategy implements CapitalAccountSt
     public CapitalAccount createAccount(CapitalAccountDTO dto) {
         Optional<CapitalAccount> existingAccount = capitalAccountRepository.findByCapitalAccountNumber(dto.getCapitalAccountNumber());
         existingAccount.ifPresent(acc -> {
+<<<<<<< HEAD
             throw new ResourceAlreadyExistsException("Capital", "[AccountNumber: " + acc.getCapitalAccountNumber() + "]");
+=======
+            throw new ResourceAlreadyExistsException("Capital", acc.getCapitalAccountNumber());
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
         });
         CapitalAccount account  = CapitalMapper.toEntity(dto);
         return capitalAccountRepository.save(account);
@@ -64,7 +73,11 @@ public abstract class AbstractCapitalAccountStrategy implements CapitalAccountSt
     }
 
     @Override
+<<<<<<< HEAD
     public boolean disableValidity(CheckDTO dto) {
+=======
+    public boolean disableValidity(CapitalCheckDTO dto) {
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
         Optional<CapitalAccount> existingAccount = capitalAccountRepository.findById(dto.getCapitalAccountId());
         if (existingAccount.isEmpty()) {
             throw new ResourceNotFoundException("Capital", "[id: " + dto.getCapitalAccountId().toString() + "]");
@@ -73,6 +86,7 @@ public abstract class AbstractCapitalAccountStrategy implements CapitalAccountSt
         return existing.getFrozenBalance().compareTo(BigDecimal.ZERO) == 0;
     }
 
+<<<<<<< HEAD
     @Override
     public CapitalAccount disableAccount(CapitalAccountDTO dto) {
         // TODO Auto-generated method stub
@@ -91,5 +105,7 @@ public abstract class AbstractCapitalAccountStrategy implements CapitalAccountSt
         throw new UnsupportedOperationException("Unimplemented method 'reportAccountLoss'");
     }
 
+=======
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
     
 }

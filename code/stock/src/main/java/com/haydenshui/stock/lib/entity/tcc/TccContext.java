@@ -5,6 +5,7 @@ import java.util.Map;
 
 public class TccContext {
     
+<<<<<<< HEAD
     private final String ctxXid;
     private final Map<String, Object> context = new HashMap<>();
 
@@ -14,6 +15,17 @@ public class TccContext {
 
     public String getCtxXid() {
         return ctxXid;
+=======
+    private final String xid;
+    private final Map<String, Object> context = new HashMap<>();
+
+    public TccContext(String xid) {
+        this.xid = xid;
+    }
+
+    public String getXid() {
+        return xid;
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
     }
 
     public void put(String key, Object value) {

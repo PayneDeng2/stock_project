@@ -19,6 +19,8 @@ import com.haydenshui.stock.lib.exception.ResourceNotFoundException;
 import com.haydenshui.stock.lib.msg.TransactionMessage;
 import com.haydenshui.stock.utils.RocketMQUtils;
 
+import java.util.List;
+
 @Component
 @RocketMQMessageListener(topic = RocketMQConstants.TOPIC_POSITION, consumerGroup = RocketMQConstants.CONSUMER_POSITION)
 public class PositionListener implements RocketMQListener<MessageExt> {
@@ -46,9 +48,13 @@ public class PositionListener implements RocketMQListener<MessageExt> {
         });
     }
 
+    @Autowired
+    private StopLossTakeProfitRuleRepository stopLossTakeProfitRuleRepository;
+
     @Override
     public void onMessage(MessageExt messageExt) {
         String tag = messageExt.getTags();
+<<<<<<< HEAD
         String rawMessage = new String(messageExt.getBody());
     
         TransactionMessage<PositionTransactionalDTO> tmsg = JSON.parseObject(
@@ -59,6 +65,31 @@ public class PositionListener implements RocketMQListener<MessageExt> {
         Consumer<TransactionMessage<PositionTransactionalDTO>> handler = tagHandlerMap.get(tag);
         if (handler == null) 
             throw new IllegalArgumentException("Unsupported tag: " + tag);
+=======
+        String message = new String(messageExt.getBody());
+
+        TransactionMessage<PositionTransactionalDTO> msg = JSON.parseObject(message, 
+            new TypeReference<TransactionMessage<PositionTransactionalDTO>>() {});
+
+        BusinessActionContext context = new BusinessActionContext();
+        context.setActionName("tradeUpdatePosition");
+        context.setXid(msg.getXid());
+
+        PositionTransactionalDTO dto = msg.getPayload();
+        List<StopLossTakeProfitRule> rules = stopLossTakeProfitRuleRepository.findByPositionId(dto.getId());
+
+        for (StopLossTakeProfitRule rule : rules) {
+            if (rule.getStatus() == RuleStatus.ACTIVE) {
+                if ((rule.getType() == RuleType.STOP_LOSS && dto.getTransactionalPrice().compareTo(rule.getThreshold()) <= 0) ||
+                    (rule.getType() == RuleType.TAKE_PROFIT && dto.getTransactionalPrice().compareTo(rule.getThreshold()) >= 0)) {
+                    rule.setStatus(RuleStatus.TRIGGERED);
+                    stopLossTakeProfitRuleRepository.save(rule);
+                    // TODO: 触发止盈止损操作
+                }
+            }
+        }
+
+>>>>>>> 13c6d9d36c826dd91c3f04d952de90f7b349efbe
         try {
             handler.accept(tmsg);
         } catch (Exception e) {

@@ -153,4 +153,27 @@ public class PositionService {
     }
     
 
+    @ServiceLog
+    public StopLossTakeProfitRule createStopLossTakeProfitRule(StopLossTakeProfitRule rule) {
+        // TODO: 实现创建止盈止损规则的逻辑
+        return stopLossTakeProfitRuleRepository.save(rule);
+    }
+
+    @ServiceLog
+    public StopLossTakeProfitRule updateStopLossTakeProfitRule(Long id, StopLossTakeProfitRule updatedRule) {
+        StopLossTakeProfitRule existingRule = stopLossTakeProfitRuleRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("StopLossTakeProfitRule", "[id: " + id + "]"));
+        existingRule.setThreshold(updatedRule.getThreshold());
+        existingRule.setStatus(updatedRule.getStatus());
+        return stopLossTakeProfitRuleRepository.save(existingRule);
+    }
+
+    @ServiceLog
+    public void deleteStopLossTakeProfitRule(Long id) {
+        if (!stopLossTakeProfitRuleRepository.existsById(id)) {
+            throw new ResourceNotFoundException("StopLossTakeProfitRule", "[id: " + id + "]");
+        }
+        stopLossTakeProfitRuleRepository.deleteById(id);
+    }
+
 }

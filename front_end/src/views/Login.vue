@@ -33,6 +33,11 @@
                 登录
               </el-button>
             </el-form-item>
+            <el-form-item>
+            <div class="register-link">
+              还没有账户? <el-link type="primary" @click="goToRegister">立即注册</el-link>
+            </div>
+            </el-form-item>
           </el-form>
         </div>
       </div>
@@ -62,20 +67,35 @@
       const showword = ref(false);
   
       function handleLogin() {
+        const users = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+        const foundUser = users.find(user => user.username === form.value.username);
+
         // 简单示例：假设用户名密码为 admin / 123456
-        if (form.value.username === 'admin' && form.value.password === '123456') {
-          sessionStorage.setItem('isLoggedIn', 'true')
-          const redirect = route.query.redirect || '/dashboard'
-          router.push(redirect)
+        if (foundUser) {
+          // sessionStorage.setItem('isLoggedIn', 'true')
+          // const redirect = route.query.redirect || '/dashboard'
+          // router.push(redirect)
+          if (foundUser.password === form.value.password) {
+            sessionStorage.setItem('isLoggedIn', 'true')
+            sessionStorage.setItem('loggedInUserDemo', form.value.username) // 保存用户名到sessionStorage
+            ElMessage.success('登录成功！');
+            const redirect = route.query.redirect || '/dashboard'
+            router.push(redirect)
+          } else {
+            ElMessage.error('密码错误')
+          }
         } else {
-          ElMessage.error('账号或密码错误')
+          ElMessage.error('用户不存在，请先注册')
         }
       }
-  
+      function goToRegister() {
+      router.push('/register') 
+    }
       return {
         form,
         showword,
-        handleLogin
+        handleLogin,
+        goToRegister
       }
     }
   }
@@ -138,5 +158,13 @@
   .cursor-pointer {
     cursor: pointer;
   }
+  .register-link {
+    width: 100%;
+    text-align: center;
+    margin-top: 10px; /* 与登录按钮隔开一些距离 */
+    font-size: 14px;
+  }
+  .register-link .el-link {
+    vertical-align: baseline; /* 调整el-link对齐 */
+}
   </style>
-  

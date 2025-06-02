@@ -37,8 +37,8 @@
       <!-- 修改密码面板保持不变 -->
       <el-tab-pane label="修改密码" name="password">
         <div class="password-section">
-          <el-form :model="form" label-width="120px">
-            <el-form-item label="原密码">
+          <el-form :model="form" :rules="passwordRules" ref="passwordFormRef" label-width="120px">
+            <el-form-item label="原密码" prop="oldPassword">
               <el-input
                 v-model="form.oldPassword"
                 :type="showOld ? 'text' : 'password'"
@@ -53,7 +53,7 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item label="新密码">
+            <el-form-item label="新密码" prop="newPassword">
               <el-input
                 v-model="form.newPassword"
                 :type="showNew ? 'text' : 'password'"
@@ -68,7 +68,7 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item label="确认密码">
+            <el-form-item label="确认密码" prop="confirmPassword">
               <el-input
                 v-model="form.confirmPassword"
                 :type="showConfirm ? 'text' : 'password'"
@@ -84,7 +84,7 @@
             </el-form-item>
 
             <el-form-item>
-              <el-button type="primary" @click="changePassword" size="large">提交</el-button>
+              <el-button type="primary" @click="handleChangePassword" size="large">提交</el-button>
             </el-form-item>
           </el-form>
         </div>
@@ -94,7 +94,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref,onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { View, Hide, User, Message, Phone } from '@element-plus/icons-vue';
 import {useRouter} from 'vue-router';
@@ -109,7 +109,10 @@ export default {
     Phone
   },
   setup() {
+    const router = useRouter();
     const activeTab = ref('info');
+    const displayedUsername = ref(''); // 初始化为空字符串，在onMounted中设置
+    const passwordFormRef = ref(null);
 
     const form = ref({
       oldPassword: '',
@@ -121,38 +124,124 @@ export default {
     const showNew = ref(false);
     const showConfirm = ref(false);
 
-    const fixedPassword = '123456'; // 设定固定原密码
-
-    const changePassword = () => {
-      if (form.value.oldPassword !== fixedPassword) {
-        ElMessage.error('原密码错误！');
-        return;
+    // const fixedPassword = '123456'; // 设定固定原密码
+    onMounted(() => {
+      // 只需要从sessionStorage获取用户名用于显示
+      const usernameFromSession = sessionStorage.getItem('loggedInUserDemo');
+      if (usernameFromSession) {
+        displayedUsername.value = usernameFromSession;
+      } else {
+        displayedUsername.value = '用户（未获取到信息）';
+        ElMessage.error('无法获取当前用户信息，请尝试重新登录。');
+        router.push('/login');
       }
-      if (form.value.newPassword !== form.value.confirmPassword) {
-        ElMessage.error('新密码和确认密码不一致！');
-        return;
-      }
+    });
 
-      console.log('修改密码提交：', form.value);
-      ElMessage.success('密码修改成功！');
+    const validateNewPasswordConfirm = (rule, value, callback) => {
+      if (value === '') {
+        callback(new Error('请再次输入新密码'));
+      } else if (value !== form.value.newPassword) {
+        callback(new Error("两次输入的新密码不一致!"));
+      } else {
+        callback();
+      }
     };
+
+    const passwordRules = ref({
+      oldPassword: [
+        { required: true, message: '请输入原密码', trigger: 'blur' }
+      ],
+      newPassword: [
+        { required: true, message: '请输入新密码', trigger: 'blur' },
+        { min: 6, message: '新密码长度不能少于6位', trigger: 'blur' }
+      ],
+      confirmPassword: [
+        { required: true, validator: validateNewPasswordConfirm, trigger: 'blur' }
+      ]
+    });
+    
+    const handleChangePassword = async () => {
+      if (!passwordFormRef.value) return;
+
+      await passwordFormRef.value.validate(async (valid) => {
+        if (valid) {
+          const loggedInUsername = sessionStorage.getItem('loggedInUserDemo');
+          // 虽然onMounted时获取了，但操作时再次确认是好习惯
+          if (!loggedInUsername) {
+            ElMessage.error('会话可能已过期，请重新登录后再试。');
+            // 你可以根据需要决定是否在这里强制跳转，或者依赖外部路由守卫
+            sessionStorage.removeItem('isLoggedIn');
+            router.push('/login');
+            return;
+          }
+
+          let users = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+          const userIndex = users.findIndex(user => user.username === loggedInUsername);
+
+          if (userIndex === -1) {
+            ElMessage.error('当前用户信息在本地存储中未找到！');
+            return;
+          }
+
+          const currentUser = users[userIndex];
+
+          if (form.value.oldPassword !== currentUser.password) {
+            ElMessage.error('原密码错误！');
+            return;
+          }
+
+          users[userIndex].password = form.value.newPassword;
+          localStorage.setItem('demoUsers', JSON.stringify(users));
+
+          ElMessage.success('密码修改成功！');
+          // form.value.oldPassword = '';
+          // form.value.newPassword = '';
+          // form.value.confirmPassword = '';
+          if(passwordFormRef.value) {
+            passwordFormRef.value.resetFields();
+          }
+          // form.value.resetFields();
+        } else {
+          ElMessage.error('请检查表单输入项。');
+          return false;
+        }
+      });
+    };
+    // const changePassword = () => {
+    //   if (form.value.oldPassword !== fixedPassword) {
+    //     ElMessage.error('原密码错误！');
+    //     return;
+    //   }
+    //   if (form.value.newPassword !== form.value.confirmPassword) {
+    //     ElMessage.error('新密码和确认密码不一致！');
+    //     return;
+    //   }
+
+    //   console.log('修改密码提交：', form.value);
+    //   ElMessage.success('密码修改成功！');
+    // };
 
     // const logout = () => {
     //   console.log('用户登出');
     // };
-    const router = useRouter();
+    // const router = useRouter();
     function logout() {
     sessionStorage.removeItem('isLoggedIn')
+    sessionStorage.removeItem('loggedInUserDemo'); // 清除用户名
+    ElMessage.success('登出成功！');
     router.push('/Dashboard')    
     }
 
     return {
       activeTab,
       form,
+      passwordFormRef,
+      passwordRules,
       showOld,
       showNew,
       showConfirm,
-      changePassword,
+      handleChangePassword,
+      displayedUsername,
       logout
     };
   }

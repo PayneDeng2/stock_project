@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from '@/components/layout/MainLayout.vue';
 import Dashboard from '@/views/Dashboard.vue';
 import Login from '@/views/Login.vue';
+import RegisterView from '@/views/Register.vue';
 
 const routes = [
   {
@@ -40,6 +41,12 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: { title: '登录' }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: RegisterView,
+    meta: { title: '注册' }
   }
 ];
 

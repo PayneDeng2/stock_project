@@ -37,7 +37,7 @@
             <div class="user-profile">
               <el-avatar size="small" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
               <div class="user-details">
-                <span class="username">用户名</span>
+                <span class="username">{{ currentUser }}</span>
                 <span class="login-time">上次登录: {{ loginTime }}</span>
               </div>
               <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
@@ -60,7 +60,8 @@
       </div>    </div>
       <!-- 股票详情弹窗 -->
     <stock-detail-dialog 
-      v-model:visible="stockDialogVisible" 
+      :visible="stockDialogVisible" 
+      @update:visible="stockDialogVisible = $event"
       :stock="selectedStock" 
       @close="stockDialogVisible = false"
     />
@@ -73,6 +74,9 @@ import { Search, Bell, ArrowDown, User, Setting, SwitchButton } from '@element-p
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import StockDetailDialog from '@/components/stock/StockDetailDialog.vue';
+
+// 导入用户管理器
+import { logoutUser } from '@/utils/userManager';
 
 export default {
   name: 'HeaderBar',
@@ -91,6 +95,7 @@ export default {
     const currentDate = ref('');
     const currentTime = ref('');
     const loginTime = ref('2025-04-15 08:30');
+    const currentUser = ref('');
     let timer = null;
 
     // 股票详情弹窗相关
@@ -109,7 +114,9 @@ export default {
       { name: '小米集团', code: '1810', change: -1.2 },
       { name: '中国石油', code: '601857', change: -0.9 },
       { name: '中国工商银行', code: '601398', change: -0.6 }
-    ];    // 搜索股票
+    ];
+
+    // 搜索股票
     const searchStocks = (queryString, callback) => {
       if (queryString) {
         // 过滤股票名称或代码包含搜索词的股票
@@ -124,7 +131,9 @@ export default {
       } else {
         callback([]);
       }
-    };    // 选择股票
+    };
+
+    // 选择股票
     const handleStockSelect = (stock) => {
       console.log('从搜索框选择的股票:', stock);
       // 清空搜索框
@@ -175,9 +184,6 @@ export default {
         stockDialogVisible.value = true;
       });
     };
-    
-    // 以下是原来的showStockDetail函数，现在已经不需要了
-    // 显示股票详情弹窗    // 原始的showStockDetail函数已被内联到handleStockSelect中
 
     const updateDateTime = () => {
       const now = new Date();
@@ -198,10 +204,13 @@ export default {
 
     // 退出登录
     const handleLogout = () => {
-      sessionStorage.removeItem('isLoggedIn');
+      // 使用用户管理器处理登出
+      logoutUser();
       router.push('/login');
       ElMessage.success('已成功退出登录');
-    };    // 监听弹窗状态变化，用于调试
+    };
+
+    // 监听弹窗状态变化，用于调试
     const watchStockDialogVisible = (newVal) => {
       console.log('stockDialogVisible 变化为:', newVal);
     };
@@ -209,10 +218,17 @@ export default {
     // 监听对象
     watch(stockDialogVisible, watchStockDialogVisible);
     
+    // 更新当前用户名
+    const updateCurrentUser = () => {
+      const username = sessionStorage.getItem('loggedInUserDemo')
+      currentUser.value = username || '用户名'
+    }
+
     onMounted(() => {
-      updateDateTime();
-      timer = setInterval(updateDateTime, 60000); // 每分钟更新一次
-    });
+      updateDateTime()
+      updateCurrentUser()
+      timer = setInterval(updateDateTime, 60000) // 每分钟更新一次
+    })
 
     onUnmounted(() => {
       if (timer) {
@@ -225,6 +241,7 @@ export default {
       currentDate,
       currentTime,
       loginTime,
+      currentUser,
       goToAccount,
       goToProfile,
       handleLogout,

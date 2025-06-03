@@ -1,10 +1,34 @@
 /**
  * 交易记录管理工具
  * 用于在前端管理交易记录的本地存储和同步
+ * 支持多用户数据隔离
  */
 
-const TRADE_RECORDS_KEY = 'stock_trade_records'
-const PENDING_TRADES_KEY = 'stock_pending_trades'
+const BASE_TRADE_RECORDS_KEY = 'stock_trade_records'
+const BASE_PENDING_TRADES_KEY = 'stock_pending_trades'
+
+/**
+ * 获取当前登录用户名
+ */
+function getCurrentUsername() {
+  return sessionStorage.getItem('loggedInUserDemo') || 'default'
+}
+
+/**
+ * 获取用户专属的交易记录存储key
+ */
+function getUserTradeRecordsKey() {
+  const username = getCurrentUsername()
+  return `${BASE_TRADE_RECORDS_KEY}_${username}`
+}
+
+/**
+ * 获取用户专属的待匹配交易存储key
+ */
+function getUserPendingTradesKey() {
+  const username = getCurrentUsername()
+  return `${BASE_PENDING_TRADES_KEY}_${username}`
+}
 
 // 股票代码到名称的映射
 const stockCodeToName = {
@@ -32,7 +56,9 @@ export function getStockName(stockCode) {
  */
 export function getTradeRecords() {
   try {
-    const records = localStorage.getItem(TRADE_RECORDS_KEY)
+    const userKey = getUserTradeRecordsKey()
+    const records = localStorage.getItem(userKey)
+    console.log(`获取用户 ${getCurrentUsername()} 的交易记录，key: ${userKey}`)
     return records ? JSON.parse(records) : []
   } catch (error) {
     console.error('获取交易记录失败:', error)
@@ -66,7 +92,9 @@ export function addTradeRecord(record) {
       records.splice(100)
     }
     
-    localStorage.setItem(TRADE_RECORDS_KEY, JSON.stringify(records))
+    const userKey = getUserTradeRecordsKey()
+    localStorage.setItem(userKey, JSON.stringify(records))
+    console.log(`保存用户 ${getCurrentUsername()} 的交易记录，key: ${userKey}`)
     return newRecord
   } catch (error) {
     console.error('添加交易记录失败:', error)
@@ -79,7 +107,9 @@ export function addTradeRecord(record) {
  */
 export function getPendingTrades() {
   try {
-    const trades = localStorage.getItem(PENDING_TRADES_KEY)
+    const userKey = getUserPendingTradesKey()
+    const trades = localStorage.getItem(userKey)
+    console.log(`获取用户 ${getCurrentUsername()} 的待匹配交易，key: ${userKey}`)
     return trades ? JSON.parse(trades) : []
   } catch (error) {
     console.error('获取待匹配交易失败:', error)
@@ -106,7 +136,9 @@ export function addPendingTrade(trade) {
       trades.splice(50)
     }
     
-    localStorage.setItem(PENDING_TRADES_KEY, JSON.stringify(trades))
+    const userKey = getUserPendingTradesKey()
+    localStorage.setItem(userKey, JSON.stringify(trades))
+    console.log(`保存用户 ${getCurrentUsername()} 的待匹配交易，key: ${userKey}`)
     return newTrade
   } catch (error) {
     console.error('添加待匹配交易失败:', error)
@@ -119,8 +151,11 @@ export function addPendingTrade(trade) {
  */
 export function clearTradeRecords() {
   try {
-    localStorage.removeItem(TRADE_RECORDS_KEY)
-    localStorage.removeItem(PENDING_TRADES_KEY)
+    const userTradeKey = getUserTradeRecordsKey()
+    const userPendingKey = getUserPendingTradesKey()
+    localStorage.removeItem(userTradeKey)
+    localStorage.removeItem(userPendingKey)
+    console.log(`清空用户 ${getCurrentUsername()} 的交易记录`)
   } catch (error) {
     console.error('清空交易记录失败:', error)
   }
@@ -139,7 +174,8 @@ export function simulateTradeExecution() {
     const executedTrade = pendingTrades.pop()
     
     // 更新待匹配交易列表
-    localStorage.setItem(PENDING_TRADES_KEY, JSON.stringify(pendingTrades))
+    const userPendingKey = getUserPendingTradesKey()
+    localStorage.setItem(userPendingKey, JSON.stringify(pendingTrades))
     
     // 添加到已完成交易记录
     addTradeRecord(executedTrade)
@@ -152,58 +188,66 @@ export function simulateTradeExecution() {
 }
 
 /**
+ * 获取默认交易记录
+ */
+function getDefaultTradeRecords() {
+  return [
+    {
+      id: 1,
+      date: '2024-03-15',
+      stockName: '阿里巴巴',
+      stockCode: '9988.HK',
+      type: '买入',
+      price: 88.50,
+      quantity: 100,
+      amount: 8850.00,
+      timestamp: new Date('2024-03-15').getTime()
+    },
+    {
+      id: 2,
+      date: '2024-03-14',
+      stockName: '腾讯控股',
+      stockCode: '0700.HK',
+      type: '卖出',
+      price: 370.00,
+      quantity: 20,
+      amount: 7400.00,
+      timestamp: new Date('2024-03-14').getTime()
+    },
+    {
+      id: 3,
+      date: '2024-03-11',
+      stockName: '小米集团',
+      stockCode: '1810.HK',
+      type: '买入',
+      price: 12.80,
+      quantity: 500,
+      amount: 6400.00,
+      timestamp: new Date('2024-03-11').getTime()
+    },
+    {
+      id: 4,
+      date: '2024-03-10',
+      stockName: '腾讯控股',
+      stockCode: '0700.HK',
+      type: '买入',
+      price: 365.00,
+      quantity: 50,
+      amount: 18250.00,
+      timestamp: new Date('2024-03-10').getTime()
+    }
+  ]
+}
+
+/**
  * 初始化默认交易记录（仅在没有记录时执行）
  */
 export function initializeDefaultRecords() {
-  const existingRecords = getTradeRecords()
-  if (existingRecords.length === 0) {
-    const defaultRecords = [
-      {
-        id: 1,
-        date: '2024-03-15',
-        stockName: '阿里巴巴',
-        stockCode: '9988.HK',
-        type: '买入',
-        price: 88.50,
-        quantity: 100,
-        amount: 8850.00,
-        timestamp: new Date('2024-03-15').getTime()
-      },
-      {
-        id: 2,
-        date: '2024-03-14',
-        stockName: '腾讯控股',
-        stockCode: '0700.HK',
-        type: '卖出',
-        price: 370.00,
-        quantity: 20,
-        amount: 7400.00,
-        timestamp: new Date('2024-03-14').getTime()
-      },
-      {
-        id: 3,
-        date: '2024-03-11',
-        stockName: '小米集团',
-        stockCode: '1810.HK',
-        type: '买入',
-        price: 12.80,
-        quantity: 500,
-        amount: 6400.00,
-        timestamp: new Date('2024-03-11').getTime()
-      },
-      {
-        id: 4,
-        date: '2024-03-10',
-        stockName: '腾讯控股',
-        stockCode: '0700.HK',
-        type: '买入',
-        price: 365.00,
-        quantity: 50,
-        amount: 18250.00,
-        timestamp: new Date('2024-03-10').getTime()
-      }
-    ]
-    
-    localStorage.setItem(TRADE_RECORDS_KEY, JSON.stringify(defaultRecords))
+  const userKey = getUserTradeRecordsKey()
+  const existingRecords = localStorage.getItem(userKey)
+  if (!existingRecords) {
+    const defaultRecords = getDefaultTradeRecords()
+    localStorage.setItem(userKey, JSON.stringify(defaultRecords))
+    console.log(`为用户 ${getCurrentUsername()} 初始化默认交易记录`)
   }
 }

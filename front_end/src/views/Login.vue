@@ -50,6 +50,10 @@
   import { useRouter, useRoute } from 'vue-router'
   import { View, Hide } from '@element-plus/icons-vue'
   import { ElMessage } from 'element-plus'
+  
+  // 导入用户管理器
+  import { validateUser, loginUser } from '@/utils/userManager'
+  
   export default {
     name: 'LoginView',
     components: {
@@ -67,30 +71,30 @@
       const showword = ref(false);
   
       function handleLogin() {
-        const users = JSON.parse(localStorage.getItem('demoUsers') || '[]');
-        const foundUser = users.find(user => user.username === form.value.username);
+        if (!form.value.username || !form.value.password) {
+          ElMessage.error('请输入用户名和密码')
+          return
+        }
 
-        // 简单示例：假设用户名密码为 admin / 123456
-        if (foundUser) {
-          // sessionStorage.setItem('isLoggedIn', 'true')
-          // const redirect = route.query.redirect || '/dashboard'
-          // router.push(redirect)
-          if (foundUser.password === form.value.password) {
-            sessionStorage.setItem('isLoggedIn', 'true')
-            sessionStorage.setItem('loggedInUserDemo', form.value.username) // 保存用户名到sessionStorage
-            ElMessage.success('登录成功！');
-            const redirect = route.query.redirect || '/dashboard'
-            router.push(redirect)
-          } else {
-            ElMessage.error('密码错误')
-          }
+        // 使用用户管理器验证用户
+        const result = validateUser(form.value.username, form.value.password)
+        
+        if (result.success) {
+          // 使用用户管理器处理登录
+          loginUser(form.value.username)
+          
+          ElMessage.success('登录成功！')
+          const redirect = route.query.redirect || '/dashboard'
+          router.push(redirect)
         } else {
-          ElMessage.error('用户不存在，请先注册')
+          ElMessage.error(result.message)
         }
       }
+      
       function goToRegister() {
-      router.push('/register') 
-    }
+        router.push('/register') 
+      }
+      
       return {
         form,
         showword,

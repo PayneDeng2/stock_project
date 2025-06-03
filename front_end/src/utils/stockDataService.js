@@ -492,3 +492,20 @@ export function getStockHistoricalData(stockCode, timeRange) {
   }
   return dataPoints;
 }
+
+/**
+ * 获取所有可用的股票列表
+ * @returns {Array} 包含所有股票基本信息的数组
+ */
+export function getAllAvailableStocks() {
+  return Object.keys(STOCK_BASE_DATA).map(code => {
+    const stockInfo = STOCK_BASE_DATA[code]
+    return {
+      code: code,
+      name: stockInfo.name,
+      sector: stockInfo.sector,
+      market: stockInfo.market,
+      basePrice: stockInfo.basePrice
+    }
+  })
+}

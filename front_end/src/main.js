@@ -5,9 +5,8 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
-// 导入初始化函数
-import { initializeDefaultRecords } from '@/utils/tradeManager'
-import { initializeDefaultWatchlist } from '@/utils/stockManager'
+// 导入用户管理器
+import { checkAndInitializeUser } from '@/utils/userManager'
 
 const app = createApp(App)
 
@@ -16,12 +15,12 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
-// 初始化默认数据
-initializeDefaultRecords()
-initializeDefaultWatchlist()
-
 app.use(router)
 app.use(ElementPlus)
+
+// 在应用挂载前检查用户状态
+checkAndInitializeUser()
+
 app.mount('#app')
 
 // 全局错误处理，忽略 ResizeObserver 相关错误

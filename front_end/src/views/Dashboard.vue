@@ -148,7 +148,8 @@
 
     <!-- 股票详情弹窗 -->
     <stock-detail-dialog 
-      v-model:visible="stockDialogVisible" 
+      :visible="stockDialogVisible" 
+      @update:visible="stockDialogVisible = $event"
       :stock="selectedStock" 
     />
   </div>

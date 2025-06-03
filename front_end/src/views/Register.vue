@@ -61,6 +61,9 @@
   import { View, Hide } from '@element-plus/icons-vue' 
   import { ElMessage } from 'element-plus'
   
+  // 导入用户管理器
+  import { registerUser } from '@/utils/userManager'
+  
   export default {
     name: 'RegisterView', 
     components: {
@@ -108,25 +111,20 @@
         if (!registerFormRef.value) return
         await registerFormRef.value.validate((valid) => {
           if (valid) {
-            const users = JSON.parse(localStorage.getItem('demoUsers') || '[]');
-            const usernameExists = users.some(user => user.username === form.value.username);
-
-            if (usernameExists) {
-            ElMessage.error('用户名已存在！');
-            return;
-            }
-            const newUser = {
+            // 使用用户管理器注册用户
+            const result = registerUser({
               username: form.value.username,
               password: form.value.password
-            };
-            users.push(newUser);
-            localStorage.setItem('demoUsers', JSON.stringify(users));
+            })
 
-            // console.log('注册信息:', form.value)
-            ElMessage.success('注册成功！即将跳转到登录页...')
-            setTimeout(() => {
-              router.push('/login')
-            }, 1500)
+            if (result.success) {
+              ElMessage.success('注册成功！已自动登录，即将跳转到首页...')
+              setTimeout(() => {
+                router.push('/dashboard')
+              }, 1500)
+            } else {
+              ElMessage.error(result.message)
+            }
           } else {
             ElMessage.error('请检查信息是否正确填写')
             return false

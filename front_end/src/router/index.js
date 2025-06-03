@@ -23,6 +23,12 @@ const routes = [
         meta: { title: '交易' }
       },
       {
+        path: '/orderbook',
+        name: 'OrderBook',
+        component: () => import('@/views/OrderBook.vue'),
+        meta: { title: '订单簿' }
+      },
+      {
         path: '/account',
         name: 'Account',
         component: () => import('@/views/Account.vue'),
@@ -60,6 +66,7 @@ router.beforeEach((to, from, next) => {
   const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
   if(to.path === '/profile' && !isLoggedIn||
      to.path === '/trading' && !isLoggedIn||
+     to.path === '/orderbook' && !isLoggedIn||
      to.path === '/account' && !isLoggedIn){
     // Redirect to login if not authenticated
     next({ path: '/login',query: { redirect: to.fullPath } });

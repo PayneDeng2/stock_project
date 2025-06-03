@@ -146,9 +146,12 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
+import { getPositions, initializeDefaultPositions } from '@/utils/positionManager'
+import { getTradeRecords, initializeDefaultTradeRecords } from '@/utils/tradeRecordManager'
+import { getAvailableFunds, depositFunds, withdrawFunds, initializeUserFunds } from '@/utils/fundManager'
 
 export default {
   name: 'AccountView',
@@ -169,7 +172,7 @@ export default {
     
     // 账户信息
     const accountInfo = reactive({
-      availableFunds: 50000.00,
+      availableFunds: 0,
       stockValue: 0
     })
 
@@ -179,53 +182,31 @@ export default {
     // 交易记录
     const transactions = ref([])
 
-    // 获取股票名称（虽然当前Account.vue中没有直接使用，但为了保持数据一致性而保留）
-    // const getStockName = (stockCode) => {
-    //   const stockMap = {
-    //     '9988.HK': '阿里巴巴',
-    //     '0700.HK': '腾讯控股',
-    //     '600519.SH': '贵州茅台',
-    //     '601318.SH': '中国平安',
-    //     '1810.HK': '小米集团'
-    //   }
-    //   return stockMap[stockCode] || '未知股票'
-    // }
+    // 监听用户切换，重新加载数据
+    const currentUser = ref(sessionStorage.getItem('loggedInUserDemo'))
+    
+    watch(() => sessionStorage.getItem('loggedInUserDemo'), (newUser) => {
+      if (newUser !== currentUser.value) {
+        console.log('Account页面 - 用户切换:', currentUser.value, '->', newUser)
+        currentUser.value = newUser
+        
+        // 重新初始化数据
+        initializeUserFunds()
+        initializeDefaultPositions()
+        initializeDefaultTradeRecords()
+        
+        // 重新加载数据
+        loadAccountInfo()
+        loadPositions()
+        loadTransactions()
+        
+        ElMessage.info(`账户数据已切换至用户: ${newUser || '默认用户'}`)
+      }
+    })
 
-    // 从localStorage获取交易记录
-    const getTradeRecords = () => {
-      const records = localStorage.getItem('tradeRecords')
-      return records ? JSON.parse(records) : []
-    }
-
-    // 从localStorage获取持仓数据
-    const getPositions = () => {
-      const positions = localStorage.getItem('positions')
-      return positions ? JSON.parse(positions) : [
-        {
-          stockName: '阿里巴巴',
-          stockCode: '9988.HK',
-          quantity: 100,
-          avgPrice: 88.50,
-          currentPrice: 89.75,
-          profitLoss: 1.41
-        },
-        {
-          stockName: '腾讯控股',
-          stockCode: '0700.HK',
-          quantity: 30,
-          avgPrice: 365.00,
-          currentPrice: 368.20,
-          profitLoss: 0.88
-        },
-        {
-          stockName: '小米集团',
-          stockCode: '1810.HK',
-          quantity: 500,
-          avgPrice: 12.80,
-          currentPrice: 12.46,
-          profitLoss: -2.66
-        }
-      ]
+    // 加载账户信息
+    const loadAccountInfo = () => {
+      accountInfo.availableFunds = getAvailableFunds()
     }
 
     // 计算持仓市值
@@ -261,41 +242,17 @@ export default {
 
     // 组件挂载时加载数据
     onMounted(() => {
-      // 初始化默认记录（如果没有记录的话）
-      if (getTradeRecords().length === 0) {
-        const defaultRecords = [
-          {
-            id: 1,
-            date: '2025/6/1',
-            stockName: '阿里巴巴',
-            stockCode: '9988.HK',
-            type: '买入',
-            price: '¥88.50',
-            quantity: 100,
-            amount: '¥8,850.00',
-            timestamp: Date.now() - 86400000
-          },
-          {
-            id: 2,
-            date: '2025/5/31',
-            stockName: '腾讯控股',
-            stockCode: '0700.HK',
-            type: '买入',
-            price: '¥365.00',
-            quantity: 30,
-            amount: '¥10,950.00',
-            timestamp: Date.now() - 172800000
-          }
-        ]
-        localStorage.setItem('tradeRecords', JSON.stringify(defaultRecords))
-      }
-
-      // 初始化持仓数据（如果没有的话）
-      if (!localStorage.getItem('positions')) {
-        localStorage.setItem('positions', JSON.stringify(getPositions()))
-      }
+      // 初始化用户资金
+      initializeUserFunds()
+      
+      // 初始化默认持仓数据
+      initializeDefaultPositions()
+      
+      // 初始化默认交易记录
+      initializeDefaultTradeRecords()
 
       // 加载数据
+      loadAccountInfo()
       loadTransactions()
       loadPositions()
       
@@ -303,6 +260,7 @@ export default {
       refreshInterval = setInterval(() => {
         // 使用 setTimeout 来避免渲染冲突
         setTimeout(() => {
+          loadAccountInfo()
           loadPositions()
           loadTransactions()
         }, 0)
@@ -341,9 +299,15 @@ export default {
         ElMessage.error('超过单次最高充值金额')
         return 
       }
-      ElMessage.success('充值申请已提交')
-      accountInfo.availableFunds += amount
-      depositForm.amount = ''
+      
+      try {
+        const newFunds = depositFunds(amount)
+        accountInfo.availableFunds = newFunds
+        ElMessage.success('充值申请已提交')
+        depositForm.amount = ''
+      } catch (error) {
+        ElMessage.error('充值失败: ' + error.message)
+      }
     }
 
     // 提现处理
@@ -359,10 +323,17 @@ export default {
       }
       if (amount > accountInfo.availableFunds) {
         ElMessage.error('可用资金不足')
-        return      }
-      ElMessage.success('提现申请已提交')
-      accountInfo.availableFunds -= amount
-      withdrawForm.amount = ''
+        return      
+      }
+      
+      try {
+        const newFunds = withdrawFunds(amount)
+        accountInfo.availableFunds = newFunds
+        ElMessage.success('提现申请已提交')
+        withdrawForm.amount = ''
+      } catch (error) {
+        ElMessage.error('提现失败: ' + error.message)
+      }
     }
 
     return {

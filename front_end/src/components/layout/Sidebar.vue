@@ -19,6 +19,10 @@
         <el-icon><Sell /></el-icon>
         <span>交易</span>
       </el-menu-item>
+      <el-menu-item index="/orderbook">
+        <el-icon><List /></el-icon>
+        <span>订单簿</span>
+      </el-menu-item>
       <el-menu-item index="/account">
         <el-icon><User /></el-icon>
         <span>我的账户</span>
@@ -34,13 +38,14 @@
 <script>
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { HomeFilled, Sell, User, Setting } from '@element-plus/icons-vue';
+import { HomeFilled, Sell, List, User, Setting } from '@element-plus/icons-vue';
 
 export default {
   name: 'SidebarMenu',
   components: {
     HomeFilled,
     Sell,
+    List,
     User,
     Setting
   },

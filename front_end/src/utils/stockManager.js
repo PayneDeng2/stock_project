@@ -1,17 +1,43 @@
 /**
  * 自选股和股票提醒管理工具
  * 用于管理用户的自选股列表和价格提醒
+ * 支持多用户数据隔离
  */
 
-const WATCHLIST_KEY = 'stock_watchlist'
-const ALERTS_KEY = 'stock_alerts'
+const BASE_WATCHLIST_KEY = 'stock_watchlist'
+const BASE_ALERTS_KEY = 'stock_alerts'
+
+/**
+ * 获取当前登录用户名
+ */
+function getCurrentUsername() {
+  return sessionStorage.getItem('loggedInUserDemo') || 'default'
+}
+
+/**
+ * 获取用户专属的自选股存储key
+ */
+function getUserWatchlistKey() {
+  const username = getCurrentUsername()
+  return `${BASE_WATCHLIST_KEY}_${username}`
+}
+
+/**
+ * 获取用户专属的提醒存储key
+ */
+function getUserAlertsKey() {
+  const username = getCurrentUsername()
+  return `${BASE_ALERTS_KEY}_${username}`
+}
 
 /**
  * 获取自选股列表
  */
 export function getWatchlist() {
   try {
-    const watchlist = localStorage.getItem(WATCHLIST_KEY)
+    const userKey = getUserWatchlistKey()
+    const watchlist = localStorage.getItem(userKey)
+    console.log(`获取用户 ${getCurrentUsername()} 的自选股列表，key: ${userKey}`)
     return watchlist ? JSON.parse(watchlist) : []
   } catch (error) {
     console.error('获取自选股列表失败:', error)
@@ -45,7 +71,9 @@ export function addToWatchlist(stock) {
       watchlist.unshift(newStock)
     }
     
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist))
+    const userKey = getUserWatchlistKey()
+    localStorage.setItem(userKey, JSON.stringify(watchlist))
+    console.log(`保存用户 ${getCurrentUsername()} 的自选股列表，key: ${userKey}`)
     return true
   } catch (error) {
     console.error('添加自选股失败:', error)
@@ -60,7 +88,9 @@ export function removeFromWatchlist(stockCode) {
   try {
     const watchlist = getWatchlist()
     const filteredList = watchlist.filter(item => item.code !== stockCode)
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(filteredList))
+    const userKey = getUserWatchlistKey()
+    localStorage.setItem(userKey, JSON.stringify(filteredList))
+    console.log(`从用户 ${getCurrentUsername()} 的自选股中移除 ${stockCode}`)
     return true
   } catch (error) {
     console.error('移除自选股失败:', error)
@@ -81,7 +111,9 @@ export function isInWatchlist(stockCode) {
  */
 export function getAlerts() {
   try {
-    const alerts = localStorage.getItem(ALERTS_KEY)
+    const userKey = getUserAlertsKey()
+    const alerts = localStorage.getItem(userKey)
+    console.log(`获取用户 ${getCurrentUsername()} 的股票提醒，key: ${userKey}`)
     return alerts ? JSON.parse(alerts) : []
   } catch (error) {
     console.error('获取提醒列表失败:', error)
@@ -110,7 +142,9 @@ export function addAlert(alert) {
       alerts.splice(100)
     }
     
-    localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts))
+    const userKey = getUserAlertsKey()
+    localStorage.setItem(userKey, JSON.stringify(alerts))
+    console.log(`保存用户 ${getCurrentUsername()} 的股票提醒，key: ${userKey}`)
     return newAlert
   } catch (error) {
     console.error('添加提醒失败:', error)
@@ -125,7 +159,9 @@ export function removeAlert(alertId) {
   try {
     const alerts = getAlerts()
     const filteredAlerts = alerts.filter(alert => alert.id !== alertId)
-    localStorage.setItem(ALERTS_KEY, JSON.stringify(filteredAlerts))
+    const userKey = getUserAlertsKey()
+    localStorage.setItem(userKey, JSON.stringify(filteredAlerts))
+    console.log(`移除用户 ${getCurrentUsername()} 的提醒 ${alertId}`)
     return true
   } catch (error) {
     console.error('移除提醒失败:', error)
@@ -143,7 +179,9 @@ export function updateAlert(alertId, updates) {
     
     if (alertIndex !== -1) {
       alerts[alertIndex] = { ...alerts[alertIndex], ...updates }
-      localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts))
+      const userKey = getUserAlertsKey()
+      localStorage.setItem(userKey, JSON.stringify(alerts))
+      console.log(`更新用户 ${getCurrentUsername()} 的提醒 ${alertId}`)
       return true
     }
     return false
@@ -199,13 +237,13 @@ export function checkPriceAlerts(stockData) {
       if (shouldTrigger) {
         alert.triggered = true
         alert.triggerTime = new Date().getTime()
-        alert.triggerPrice = currentPrice
         triggeredAlerts.push(alert)
       }
     })
     
     if (triggeredAlerts.length > 0) {
-      localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts))
+      const userKey = getUserAlertsKey()
+      localStorage.setItem(userKey, JSON.stringify(alerts))
     }
     
     return triggeredAlerts
@@ -216,42 +254,29 @@ export function checkPriceAlerts(stockData) {
 }
 
 /**
- * 清空所有数据
+ * 清空用户所有数据
  */
 export function clearAllData() {
   try {
-    localStorage.removeItem(WATCHLIST_KEY)
-    localStorage.removeItem(ALERTS_KEY)
+    const userWatchlistKey = getUserWatchlistKey()
+    const userAlertsKey = getUserAlertsKey()
+    localStorage.removeItem(userWatchlistKey)
+    localStorage.removeItem(userAlertsKey)
+    console.log(`清空用户 ${getCurrentUsername()} 的所有股票数据`)
   } catch (error) {
     console.error('清空数据失败:', error)
   }
 }
 
 /**
- * 初始化默认自选股（仅在没有数据时执行）
+ * 初始化默认自选股列表（仅在没有数据时执行）
  */
 export function initializeDefaultWatchlist() {
-  const existingWatchlist = getWatchlist()
-  if (existingWatchlist.length === 0) {
-    const defaultWatchlist = [
-      {
-        id: 1,
-        code: '9988.HK',
-        name: '阿里巴巴',
-        currentPrice: '88.50',
-        change: 2.3,
-        addTime: new Date().getTime()
-      },
-      {
-        id: 2,
-        code: '0700.HK',
-        name: '腾讯控股',
-        currentPrice: '370.00',
-        change: 1.8,
-        addTime: new Date().getTime()
-      }
-    ]
-    
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(defaultWatchlist))
+  const userKey = getUserWatchlistKey()
+  const existingWatchlist = localStorage.getItem(userKey)
+  if (!existingWatchlist) {
+    // 初始化为空数组，不添加默认股票
+    localStorage.setItem(userKey, JSON.stringify([]))
+    console.log(`为用户 ${getCurrentUsername()} 初始化空的自选股列表`)
   }
 }

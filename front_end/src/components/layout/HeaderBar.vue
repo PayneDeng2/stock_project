@@ -78,6 +78,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import StockDetailDialog from '@/components/stock/StockDetailDialog.vue';
 import {authState,syncAuthState} from '@/store/authStore.js'; // 导入认证状态
+import { getAllAvailableStocks, getStockRealtimeData } from '@/utils/stockDataService';
 
 // 导入用户管理器
 import { logoutUser } from '@/utils/userManager';
@@ -108,31 +109,33 @@ export default {
     const stockDialogVisible = ref(false);
     const selectedStock = ref({});
 
-    // 股票数据，实际项目中应该从API获取
-    const stockList = [
-      { name: '阿里巴巴', code: '9988', change: 2.3 },
-      { name: '腾讯控股', code: '0700', change: 1.8 },
-      { name: '贵州茅台', code: '600519', change: 0.9 },
-      { name: '中国平安', code: '601318', change: 0.7 },
-      { name: '招商银行', code: '600036', change: 0.5 },
-      { name: '京东集团', code: '9618', change: -1.8 },
-      { name: '美团点评', code: '3690', change: -1.5 },
-      { name: '小米集团', code: '1810', change: -1.2 },
-      { name: '中国石油', code: '601857', change: -0.9 },
-      { name: '中国工商银行', code: '601398', change: -0.6 }
-    ];
+    // 从 stockDataService 获取完整的股票数据
+    const stockList = ref([]);
+    
+    // 初始化股票数据
+    const initializeStockList = () => {
+      const allStocks = getAllAvailableStocks();
+      stockList.value = allStocks.map(stock => ({
+        name: stock.name,
+        code: stock.code,
+        sector: stock.sector,
+        market: stock.market,
+        change: 0 // 默认涨跌幅
+      }));
+      console.log('初始化股票列表:', stockList.value);
+    };
 
     // 搜索股票
     const searchStocks = (queryString, callback) => {
       if (queryString) {
         // 过滤股票名称或代码包含搜索词的股票
-        const results = stockList.filter(
+        const results = stockList.value.filter(
           stock => 
             stock.name.toLowerCase().includes(queryString.toLowerCase()) || 
             stock.code.includes(queryString)
         );
         // 确保每个结果都是完整的股票对象
-        console.log('搜索结果:', results);
+        console.log('搜索关键词:', queryString, '搜索结果:', results);
         callback(results);
       } else {
         callback([]);
@@ -151,44 +154,52 @@ export default {
         return;
       }
       
-      // 确保stock对象包含所有必要的属性
-      const completeStock = stockList.find(item => item.code === stock.code);
-      
-      // 准备股票数据
-      const stockData = completeStock ? {
-        ...completeStock,
-        currentPrice: (100 + completeStock.change).toFixed(2),
-        openPrice: '101.20',
-        prevClosePrice: '100.00',
-        highPrice: '102.50',
-        lowPrice: '99.80',
-        turnover: '1.58亿',
-        volume: '1.58亿',
-        pe: '18.5',
-        pb: '2.3'
-      } : {
-        ...stock,
-        change: stock.change || 0,
-        currentPrice: (100 + (stock.change || 0)).toFixed(2),
-        openPrice: '101.20',
-        prevClosePrice: '100.00',
-        highPrice: '102.50',
-        lowPrice: '99.80',
-        turnover: '1.58亿',
-        volume: '1.58亿',
-        pe: '18.5',
-        pb: '2.3'
-      };
-      
-      console.log('准备使用的股票数据:', stockData);
-      
-      // 更新数据并确保视图更新后再显示弹窗
-      selectedStock.value = stockData;
-      
-      nextTick(() => {
-        console.log('nextTick - 设置弹窗显示');
-        stockDialogVisible.value = true;
-      });
+      try {
+        // 获取股票的详细实时数据，与排行榜保持一致
+        const detailData = getStockRealtimeData(stock.code);
+        
+        selectedStock.value = {
+          ...stock,
+          ...detailData,
+          // 补充详情页需要的额外信息
+          pe: generatePERatio(stock.code),
+          pb: generatePBRatio(stock.code),
+          prevClosePrice: (parseFloat(detailData.currentPrice) - parseFloat(detailData.changeAmount)).toFixed(2)
+        };
+        
+        console.log('准备使用的股票数据:', selectedStock.value);
+        
+        nextTick(() => {
+          console.log('nextTick - 设置弹窗显示');
+          stockDialogVisible.value = true;
+        });
+      } catch (error) {
+        console.error('获取股票详情失败:', error);
+        ElMessage.error('获取股票详情失败，请稍后再试');
+      }
+    };
+
+    // 生成市盈率（基于股票代码的稳定值）
+    const generatePERatio = (stockCode) => {
+      const hash = hashString(stockCode + 'pe');
+      return ((hash % 300 + 50) / 10).toFixed(1); // 5.0-35.0
+    };
+
+    // 生成市净率（基于股票代码的稳定值）
+    const generatePBRatio = (stockCode) => {
+      const hash = hashString(stockCode + 'pb');
+      return ((hash % 80 + 10) / 10).toFixed(1); // 1.0-9.0
+    };
+
+    // 简单的字符串哈希函数
+    const hashString = (str) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 转换为32位整数
+      }
+      return Math.abs(hash);
     };
 
     const updateDateTime = () => {
@@ -240,6 +251,7 @@ export default {
       updateDateTime()
       // updateCurrentUser()
       timer = setInterval(updateDateTime, 60000) // 每分钟更新一次
+      initializeStockList()
     })
 
     onUnmounted(() => {

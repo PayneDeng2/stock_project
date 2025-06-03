@@ -27,7 +27,7 @@
 <script>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Menu } from '@element-plus/icons-vue'
-import Sidebar from './Sidebar.vue';
+import Sidebar from './SideBar.vue';
 import HeaderBar from './HeaderBar.vue';
 
 export default {

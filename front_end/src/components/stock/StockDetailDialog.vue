@@ -68,7 +68,8 @@
 
     <!-- 股票提醒弹窗 -->
     <stock-alert-dialog 
-      v-model:visible="alertDialogVisible" 
+      :visible="alertDialogVisible" 
+      @update:visible="alertDialogVisible = $event"
       :stock="stock"
       @alert-added="handleAlertAdded"
     />

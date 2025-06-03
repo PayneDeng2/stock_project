@@ -7,6 +7,7 @@ import { initializeDefaultRecords } from './tradeManager'
 import { initializeDefaultWatchlist } from './stockManager'
 import { initializeUserFunds } from './fundManager'
 import { initializeNewUserPositions } from './positionManager'
+import { syncAuthState } from '../store/authStore'
 
 /**
  * 获取当前登录用户名
@@ -29,6 +30,8 @@ export function isUserLoggedIn() {
 export function loginUser(username) {
   sessionStorage.setItem('isLoggedIn', 'true')
   sessionStorage.setItem('loggedInUserDemo', username)
+
+  syncAuthState() // 同步认证状态到 store
   
   // 初始化用户数据（登录时不初始化持仓）
   initializeExistingUserData()
@@ -44,6 +47,8 @@ export function logoutUser() {
   
   sessionStorage.removeItem('isLoggedIn')
   sessionStorage.removeItem('loggedInUserDemo')
+
+  syncAuthState() // 同步认证状态到 store
   
   console.log(`用户 ${currentUser} 已登出`)
 }
@@ -115,6 +120,7 @@ export function checkAndInitializeUser() {
   if (isUserLoggedIn()) {
     const currentUser = getCurrentUser()
     if (currentUser) {
+      syncAuthState() // 同步认证状态到 store
       initializeExistingUserData()
       console.log(`检测到已登录用户 ${currentUser}，数据已初始化`)
     } else {
@@ -122,6 +128,11 @@ export function checkAndInitializeUser() {
       logoutUser()
       console.warn('检测到无效登录状态，已清理')
     }
+  }
+  else
+  {
+    syncAuthState() // 同步认证状态到 store
+    console.log('当前没有用户登录，跳过数据初始化')
   }
 }
 
@@ -184,6 +195,8 @@ export function registerUser(userData) {
     // 自动登录新用户
     sessionStorage.setItem('isLoggedIn', 'true')
     sessionStorage.setItem('loggedInUserDemo', userData.username)
+
+    syncAuthState() // 同步认证状态到 store
     
     // 为新用户初始化完整数据（包括持仓）
     initializeNewUserData()

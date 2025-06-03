@@ -50,7 +50,10 @@
                 <el-dropdown-item @click="goToProfile">
                   <el-icon><Setting /></el-icon>设置
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="handleLogout">
+                <el-dropdown-item v-if="isGuest" divided @click="goToLogin">
+                  <el-icon><Key /></el-icon>登录
+                </el-dropdown-item>
+                <el-dropdown-item v-else divided @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -69,11 +72,12 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { Search, Bell, ArrowDown, User, Setting, SwitchButton } from '@element-plus/icons-vue';
+import { ref, onMounted, onUnmounted, nextTick, watch,computed } from 'vue';
+import { Search, Bell, ArrowDown, User, Setting, SwitchButton,Key } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import StockDetailDialog from '@/components/stock/StockDetailDialog.vue';
+import {authState,syncAuthState} from '@/store/authStore.js'; // 导入认证状态
 
 // 导入用户管理器
 import { logoutUser } from '@/utils/userManager';
@@ -87,6 +91,7 @@ export default {
     User,
     Setting,
     SwitchButton,
+    Key,
     StockDetailDialog
   },
   setup() {
@@ -95,7 +100,8 @@ export default {
     const currentDate = ref('');
     const currentTime = ref('');
     const loginTime = ref('2025-04-15 08:30');
-    const currentUser = ref('');
+    const currentUser = computed(() => authState.username || '访客' );
+    const isGuest = computed(() => currentUser.value === '访客');
     let timer = null;
 
     // 股票详情弹窗相关
@@ -206,8 +212,13 @@ export default {
     const handleLogout = () => {
       // 使用用户管理器处理登出
       logoutUser();
-      router.push('/login');
+      router.push('/Dashboard');
       ElMessage.success('已成功退出登录');
+    };
+
+    // 导航到登录页面
+    const goToLogin = () => {
+      router.push('/login');
     };
 
     // 监听弹窗状态变化，用于调试
@@ -219,14 +230,15 @@ export default {
     watch(stockDialogVisible, watchStockDialogVisible);
     
     // 更新当前用户名
-    const updateCurrentUser = () => {
-      const username = sessionStorage.getItem('loggedInUserDemo')
-      currentUser.value = username || '用户名'
-    }
+    // const updateCurrentUser = () => {
+    //   const username = sessionStorage.getItem('loggedInUserDemo')
+    //   currentUser.value = username || '访客'
+    // }
 
     onMounted(() => {
+      syncAuthState() // 同步认证状态
       updateDateTime()
-      updateCurrentUser()
+      // updateCurrentUser()
       timer = setInterval(updateDateTime, 60000) // 每分钟更新一次
     })
 
@@ -242,9 +254,11 @@ export default {
       currentTime,
       loginTime,
       currentUser,
+      isGuest,
       goToAccount,
       goToProfile,
       handleLogout,
+      goToLogin,
       searchStocks,
       handleStockSelect,
       stockDialogVisible,

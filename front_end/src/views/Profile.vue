@@ -96,6 +96,7 @@ import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { View, Hide, User, Message, Phone } from '@element-plus/icons-vue'; 
 import { useRouter } from 'vue-router';
+import { logoutUser } from '@/utils/userManager'; 
 
 export default {
   name: 'ProfileView',
@@ -260,8 +261,7 @@ export default {
     };
     
     const logout = () => {
-      sessionStorage.removeItem('isLoggedIn');
-      sessionStorage.removeItem('loggedInUserDemo'); //
+      logoutUser();
       ElMessage.success('登出成功！');
       router.push('/Dashboard');
     };
